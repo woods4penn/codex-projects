@@ -1,0 +1,99 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "logicAppName": { "type": "string" },
+    "location": { "type": "string", "defaultValue": "eastus" },
+    "containerUrl": { "type": "string" },
+    "repoOwner": { "type": "string" },
+    "repoName": { "type": "string" },
+    "filePath": { "type": "string", "defaultValue": "data/trending.json" },
+    "githubConnectionName": { "type": "string", "defaultValue": "github-connection" },
+    "githubConnectionDisplayName": { "type": "string", "defaultValue": "GitHub Connector" },
+    "githubToken": { "type": "securestring", "defaultValue": "" }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/connections",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('githubConnectionName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "displayName": "[parameters('githubConnectionDisplayName')]",
+        "api": {
+          "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/github')]"
+        },
+        "parameterValues": {
+          "token": "[parameters('githubToken')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2019-05-01",
+      "name": "[parameters('logicAppName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "triggers": {
+            "Recurrence": {
+              "type": "Recurrence",
+              "recurrence": {
+                "frequency": "Day",
+                "interval": 1,
+                "schedule": { "hours": [15], "minutes": [55] },
+                "timeZone": "Eastern Standard Time"
+              }
+            }
+          },
+          "actions": {
+            "Get_trending": {
+              "type": "Http",
+              "inputs": {
+                "method": "GET",
+                "uri": "[concat(parameters('containerUrl'), '/trending?region=US&limit=20')]"
+              }
+            },
+            "Create_or_update_file_in_GitHub": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['github']['connectionId']"
+                  }
+                },
+                "method": "put",
+                "path": "[concat('/repos/', parameters('repoOwner'), '/', parameters('repoName'), '/contents/', parameters('filePath'))]",
+                "body": {
+                  "message": "Automated trending update",
+                  "content": "@base64(body('Get_trending'))"
+                }
+              },
+              "runAfter": {
+                "Get_trending": [ "Succeeded" ]
+              }
+            }
+          },
+          "outputs": {}
+        },
+        "parameters": {
+          "$connections": {
+            "value": {
+              "github": {
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('githubConnectionName'))]",
+                "connectionName": "[parameters('githubConnectionName')]",
+                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('location'), '/managedApis/github')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [ "[resourceId('Microsoft.Web/connections', parameters('githubConnectionName'))]" ]
+    }
+  ],
+  "outputs": {
+    "logicAppName": { "type": "string", "value": "[parameters('logicAppName')]" }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerUrl": {
+      "type": "string",
+      "defaultValue": "https://<your-container-host>"
+    },
+    "repoOwner": { "type": "string", "defaultValue": "your-github-username" },
+    "repoName": { "type": "string", "defaultValue": "your-repo" },
+    "filePath": { "type": "string", "defaultValue": "data/trending.json" }
+  },
+  "triggers": {
+    "Recurrence": {
+      "type": "Recurrence",
+      "recurrence": {
+        "frequency": "Day",
+        "interval": 1,
+        "schedule": { "hours": [15], "minutes": [55] },
+        "timeZone": "Eastern Standard Time"
+      }
+    }
+  },
+  "actions": {
+    "Get_trending": {
+      "type": "Http",
+      "inputs": {
+        "method": "GET",
+        "uri": "@concat(parameters('containerUrl'), '/trending?region=US&limit=20')"
+      },
+      "runAfter": {}
+    },
+    "Create_or_update_file_in_GitHub": {
+      "type": "ApiConnection",
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['github']['connectionId']"
+          }
+        },
+        "method": "put",
+        "path": "/repos/@{parameters('repoOwner')}/@{parameters('repoName')}/contents/@{parameters('filePath')}",
+        "body": {
+          "message": "Automated trending update",
+          "content": "@base64(body('Get_trending'))"
+        }
+      },
+      "runAfter": {
+        "Get_trending": ["Succeeded"]
+      }
+    }
+  },
+  "outputs": {}
+}
