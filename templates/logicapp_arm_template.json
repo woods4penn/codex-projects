@@ -41,9 +41,13 @@
             "Recurrence": {
               "type": "Recurrence",
               "recurrence": {
-                "frequency": "Day",
+                "frequency": "Week",
                 "interval": 1,
-                "schedule": { "hours": [15], "minutes": [55] },
+                "schedule": {
+                  "weekDays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                  "hours": [15],
+                  "minutes": [55]
+                },
                 "timeZone": "Eastern Standard Time"
               }
             }
