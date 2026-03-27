@@ -65,6 +65,13 @@ This deploys `templates/logicapp_arm_template.json`, which:
 - `templates/logicapp_workflow.json` - direct Logic App workflow definition.
 - `templates/logicapp_arm_template.json` - ARM deployment template for workflow + GitHub connection.
 
+
+## Troubleshooting
+
+- **Error:** `failed to build: unable to prepare context: path "codex-projects" not found`
+  - Cause: You are using an older copy of `deploy_azure.sh` that hard-coded `codex-projects` in the Docker build path.
+  - Fix: Pull latest repo changes and rerun `./deploy_azure.sh ...`. The updated script resolves paths from its own location and prints the exact docker build command it is using.
+
 ## Optional: test your endpoint
 
 ```bash
