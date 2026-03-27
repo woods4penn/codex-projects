@@ -72,6 +72,21 @@ This deploys `templates/logicapp_arm_template.json`, which:
   - Cause: You are using an older copy of `deploy_azure.sh` that hard-coded `codex-projects` in the Docker build path.
   - Fix: Pull latest repo changes and rerun `./deploy_azure.sh ...`. The updated script resolves paths from its own location and prints the exact docker build command it is using.
 
+- **Error:** `The workflow parameters '$connections' are not valid...`
+  - Cause: older ARM template missing definition-level `$connections` declaration.
+  - Fix: pull latest repo and redeploy with `./deploy_logicapp.sh ...`.
+
+
+- **Need deployment operation details**
+  - Use the current Azure CLI syntax:
+    ```bash
+    az deployment operation group list \
+      --resource-group myResourceGroup \
+      --name logicapp_arm_template \
+      -o table
+    ```
+  - If this command is unavailable, update Azure CLI (`az upgrade`).
+
 ## Optional: test your endpoint
 
 ```bash

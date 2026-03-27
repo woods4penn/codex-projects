@@ -2,15 +2,38 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "logicAppName": { "type": "string" },
-    "location": { "type": "string", "defaultValue": "eastus" },
-    "containerUrl": { "type": "string" },
-    "repoOwner": { "type": "string" },
-    "repoName": { "type": "string" },
-    "filePath": { "type": "string", "defaultValue": "data/trending.json" },
-    "githubConnectionName": { "type": "string", "defaultValue": "github-connection" },
-    "githubConnectionDisplayName": { "type": "string", "defaultValue": "GitHub Connector" },
-    "githubToken": { "type": "securestring", "defaultValue": "" }
+    "logicAppName": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus"
+    },
+    "containerUrl": {
+      "type": "string"
+    },
+    "repoOwner": {
+      "type": "string"
+    },
+    "repoName": {
+      "type": "string"
+    },
+    "filePath": {
+      "type": "string",
+      "defaultValue": "data/trending.json"
+    },
+    "githubConnectionName": {
+      "type": "string",
+      "defaultValue": "github-connection"
+    },
+    "githubConnectionDisplayName": {
+      "type": "string",
+      "defaultValue": "GitHub Connector"
+    },
+    "githubToken": {
+      "type": "securestring",
+      "defaultValue": ""
+    }
   },
   "resources": [
     {
@@ -44,9 +67,19 @@
                 "frequency": "Week",
                 "interval": 1,
                 "schedule": {
-                  "weekDays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-                  "hours": [15],
-                  "minutes": [55]
+                  "weekDays": [
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday"
+                  ],
+                  "hours": [
+                    15
+                  ],
+                  "minutes": [
+                    55
+                  ]
                 },
                 "timeZone": "Eastern Standard Time"
               }
@@ -76,11 +109,19 @@
                 }
               },
               "runAfter": {
-                "Get_trending": [ "Succeeded" ]
+                "Get_trending": [
+                  "Succeeded"
+                ]
               }
             }
           },
-          "outputs": {}
+          "outputs": {},
+          "parameters": {
+            "$connections": {
+              "type": "Object",
+              "defaultValue": {}
+            }
+          }
         },
         "parameters": {
           "$connections": {
@@ -94,10 +135,15 @@
           }
         }
       },
-      "dependsOn": [ "[resourceId('Microsoft.Web/connections', parameters('githubConnectionName'))]" ]
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', parameters('githubConnectionName'))]"
+      ]
     }
   ],
   "outputs": {
-    "logicAppName": { "type": "string", "value": "[parameters('logicAppName')]" }
+    "logicAppName": {
+      "type": "string",
+      "value": "[parameters('logicAppName')]"
+    }
   }
 }
