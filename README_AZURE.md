@@ -1,122 +1,100 @@
 Containerizing and deploying `yahoo_trending_tickers.py` to Azure
 
-Quick steps
+This repo now includes automation scripts to deploy:
 
-1. Build the Docker image locally:
+1) A **Container App** hosting `/trending`.
+2) A **Logic App** that runs **every weekday (Monday-Friday) at 3:55 PM Eastern** and commits JSON output to GitHub.
 
-```bash
-docker build -t myrepo/yahoo-trending:latest .
-```
+## Prerequisites
 
-2. Test locally (pass CLI args after image name):
+- Azure CLI installed and logged in (`az login`).
+- Docker installed and running.
+- Permission to create Azure resources.
+- A GitHub Personal Access Token (PAT) with `repo` scope.
 
-```bash
-docker run --rm myrepo/yahoo-trending:latest --region US --limit 10
-```
-
-3. Push to Azure Container Registry (ACR)
-
-- Create a resource group and ACR (replace names):
+## 1) Deploy the container app
 
 ```bash
-az group create -n myResourceGroup -l westus
-az acr create -n MyRegistry -g myResourceGroup --sku Basic
-az acr login --name MyRegistry
+chmod +x ./deploy_azure.sh
+./deploy_azure.sh <resource-group> <location> <acr-name> <image-name> <tag> <env-name> <app-name>
 ```
 
-- Tag and push the image to ACR (replace `MyRegistry`):
+Example:
 
 ```bash
-docker tag myrepo/yahoo-trending:latest MyRegistry.azurecr.io/yahoo-trending:latest
-docker push MyRegistry.azurecr.io/yahoo-trending:latest
+./deploy_azure.sh myResourceGroup eastus myregistry yahoo-trending latest myEnv yahoo-trending-app
 ```
 
-4. Deploy to Azure Container Instances (ACI)
+When it completes, the script prints a host like:
+
+```text
+https://<your-container-app-host>
+```
+
+Use that host in the next step.
+
+## 2) Deploy the weekday scheduler + GitHub writer (Logic App)
 
 ```bash
-az container create -g myResourceGroup -n yahoo-trending \
-  --image MyRegistry.azurecr.io/yahoo-trending:latest \
-  --cpu 1 --memory 1 \
-  --registry-login-server MyRegistry.azurecr.io \
-  --restart-policy OnFailure
+chmod +x ./deploy_logicapp.sh
+./deploy_logicapp.sh <resource-group> <location> <logic-app-name> <container-url> <repo-owner> <repo-name> <github-pat> [file-path]
 ```
 
-5. Deploy as a HTTP service (recommended)
-
-- Instead of ACI, deploy to Azure Container Apps or Azure Web App for Containers to expose an HTTP endpoint at `/trending`.
-
-- Example: create a Container App (requires the Azure CLI extension `containerapp`):
+Example:
 
 ```bash
-# login & set subscription
-az login
-az account set -s <subscription-id>
-
-# create resource group if not done
-az group create -n myResourceGroup -l eastus
-
-# create container apps environment (once)
-az containerapp env create -n myEnv -g myResourceGroup -l eastus
-
-# create the container app (example)
-az containerapp create -g myResourceGroup -n yahoo-trending-app \
-  --image MyRegistry.azurecr.io/yahoo-trending:latest \
-  --environment myEnv --ingress external --target-port 8080
+./deploy_logicapp.sh \
+  myResourceGroup \
+  eastus \
+  yahoo-trending-weekday-export \
+  https://myapp.eastus.azurecontainerapps.io \
+  your-github-username \
+  your-repo \
+  ghp_xxxREDACTEDxxx \
+  data/trending.json
 ```
 
-6. Create an Azure Logic App to schedule and push to GitHub
+This deploys `templates/logicapp_arm_template.json`, which:
 
-- In the Azure Portal, create a Logic App (Consumption or Standard). Use the Logic App Designer to build a workflow:
-  - Trigger: Recurrence — set Frequency: Day, Interval: 1, At these hours/minutes: 15:55, Time zone: `Eastern Standard Time` (or `America/New_York`).
-  - Action: HTTP — GET `https://<your-container-app-host>/trending?region=US&limit=20` (this will return the JSON payload).
-  - Action: GitHub — Choose `Create or update file` (you'll be prompted to sign in and authorize the connector).
-    - Repository: select your repo
-    - File path: path/to/trending.json
-    - File content: use the body from the HTTP action
-    - Commit message: `Automated trending update`
+- Triggers on weekdays at 3:55 PM ET.
+- Calls `GET <container-url>/trending?region=US&limit=20`.
+- Commits the JSON response to your GitHub repository.
 
-- Save the Logic App. It will run daily at 3:55pm Eastern and push the latest JSON into your GitHub repo.
+## Template files
 
-Notes:
-- Logic Apps will handle the GitHub OAuth flow; no PAT stored in code.
-- If your container app requires authentication, you can secure it and add an HTTP action with managed identity or a client secret.
-- You can also add error handling in the Logic App: on failure, send yourself an email or retry.
-
-QuantConnect integration
-- Point your QuantConnect job to read the JSON from your repository (raw.githubusercontent.com URL) or from Azure Blob Storage. If you want the file stored in Blob Storage instead, change the Logic App flow: call the HTTP service, then use the Azure Blob Storage connector to upload the file, then (optionally) push to GitHub.
+- `templates/logicapp_workflow.json` - direct Logic App workflow definition.
+- `templates/logicapp_arm_template.json` - ARM deployment template for workflow using direct GitHub REST API calls.
 
 
-Notes and alternatives
-- You can also deploy the image to Azure Web App for Containers or AKS.
-- Replace `MyRegistry`, `myResourceGroup`, and other placeholders with your values.
-- If the image is rate-limited by Yahoo, consider scheduling runs less frequently or using an App Service with caching.
+## Troubleshooting
 
-Automation script
------------------
+- **Error:** `failed to build: unable to prepare context: path "codex-projects" not found`
+  - Cause: You are using an older copy of `deploy_azure.sh` that hard-coded `codex-projects` in the Docker build path.
+  - Fix: Pull latest repo changes and rerun `./deploy_azure.sh ...`. The updated script resolves paths from its own location and prints the exact docker build command it is using.
 
-I included a helper script `codex-projects/deploy_azure.sh` that:
+- **Error:** `Operation Id cannot be determined from definition and swagger`
+  - Cause: GitHub connector-based action definition mismatch in older templates.
+  - Fix: pull latest repo and redeploy; the latest template uses direct GitHub HTTP API actions instead of connector swagger mappings.
 
-- Creates the resource group and an Azure Container Registry (ACR) if missing.
-- Builds and pushes the Docker image to ACR.
-- Creates a Container Apps environment and deploys the container app.
 
-Usage:
+- **Need deployment operation details**
+  - Use the current Azure CLI syntax:
+    ```bash
+    az deployment operation group list \
+      --resource-group myResourceGroup \
+      --name logicapp_arm_template \
+      -o table
+    ```
+  - If this command is unavailable, update Azure CLI (`az upgrade`).
+
+## Optional: test your endpoint
 
 ```bash
-chmod +x codex-projects/deploy_azure.sh
-./codex-projects/deploy_azure.sh <resource-group> <location> <acr-name> <image-name> <tag> <env-name> <app-name>
-# example:
-./codex-projects/deploy_azure.sh myResourceGroup eastus myregistry yahoo-trending latest myEnv yahoo-trending-app
+curl "https://<your-container-app-host>/trending?region=US&limit=5"
 ```
 
-After the script finishes it prints the container app host. Use that value when creating the Logic App workflow.
+## Notes
 
-Logic App workflow template
----------------------------
-
-See `codex-projects/templates/logicapp_workflow.json` — import this definition into the Logic App Designer (Code view) and sign in to the GitHub connector when prompted. The workflow:
-
-- Triggers daily at 3:55 PM Eastern.
-- Calls `https://<your-container-host>/trending?region=US&limit=20`.
-- Uses the GitHub connector `Create or update file` action to write `trending.json` into your repository.
-
+- Keep your GitHub PAT secure; prefer secret management in production.
+- Logic App schedule timezone is set to `Eastern Standard Time` to maintain 3:55 PM ET behavior.
+- If you want a different output file path, pass the optional `[file-path]` argument.
