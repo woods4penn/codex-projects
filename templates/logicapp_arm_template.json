@@ -109,7 +109,13 @@
               }
             }
           },
-          "outputs": {}
+          "outputs": {},
+          "parameters": {
+            "$connections": {
+              "type": "Object",
+              "defaultValue": {}
+            }
+          }
         },
         "parameters": {
           "containerUrl": { "value": "[parameters('containerUrl')]" },
@@ -122,6 +128,9 @@
     }
   ],
   "outputs": {
-    "logicAppName": { "type": "string", "value": "[parameters('logicAppName')]" }
+    "logicAppName": {
+      "type": "string",
+      "value": "[parameters('logicAppName')]"
+    }
   }
 }
