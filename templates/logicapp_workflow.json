@@ -6,9 +6,22 @@
       "type": "string",
       "defaultValue": "https://<your-container-host>"
     },
-    "repoOwner": { "type": "string", "defaultValue": "your-github-username" },
-    "repoName": { "type": "string", "defaultValue": "your-repo" },
-    "filePath": { "type": "string", "defaultValue": "data/trending.json" }
+    "repoOwner": {
+      "type": "string",
+      "defaultValue": "your-github-username"
+    },
+    "repoName": {
+      "type": "string",
+      "defaultValue": "your-repo"
+    },
+    "filePath": {
+      "type": "string",
+      "defaultValue": "data/trending.json"
+    },
+    "githubToken": {
+      "type": "SecureString",
+      "defaultValue": ""
+    }
   },
   "triggers": {
     "Recurrence": {
@@ -34,23 +47,61 @@
       },
       "runAfter": {}
     },
-    "Create_or_update_file_in_GitHub": {
-      "type": "ApiConnection",
+    "Get_existing_file": {
+      "type": "Http",
       "inputs": {
-        "host": {
-          "connection": {
-            "name": "@parameters('$connections')['github']['connectionId']"
-          }
-        },
-        "method": "put",
-        "path": "/repos/@{parameters('repoOwner')}/@{parameters('repoName')}/contents/@{parameters('filePath')}",
-        "body": {
-          "message": "Automated trending update",
-          "content": "@base64(body('Get_trending'))"
+        "method": "GET",
+        "uri": "@concat('https://api.github.com/repos/', parameters('repoOwner'), '/', parameters('repoName'), '/contents/', parameters('filePath'))",
+        "headers": {
+          "Authorization": "@concat('Bearer ', parameters('githubToken'))",
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "azure-logic-app"
         }
       },
       "runAfter": {
         "Get_trending": ["Succeeded"]
+      }
+    },
+    "Create_file_in_GitHub": {
+      "type": "Http",
+      "inputs": {
+        "method": "PUT",
+        "uri": "@concat('https://api.github.com/repos/', parameters('repoOwner'), '/', parameters('repoName'), '/contents/', parameters('filePath'))",
+        "headers": {
+          "Authorization": "@concat('Bearer ', parameters('githubToken'))",
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "azure-logic-app"
+        },
+        "body": {
+          "message": "Automated trending update",
+          "content": "@base64(string(body('Get_trending')))"
+        }
+      },
+      "runAfter": {
+        "Get_existing_file": ["Failed"]
+      }
+    },
+    "Update_file_in_GitHub": {
+      "type": "Http",
+      "inputs": {
+        "method": "PUT",
+        "uri": "@concat('https://api.github.com/repos/', parameters('repoOwner'), '/', parameters('repoName'), '/contents/', parameters('filePath'))",
+        "headers": {
+          "Authorization": "@concat('Bearer ', parameters('githubToken'))",
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "azure-logic-app"
+        },
+        "body": {
+          "message": "Automated trending update",
+          "content": "@base64(string(body('Get_trending')))",
+          "sha": "@body('Get_existing_file')?['sha']"
+        }
+      },
+      "runAfter": {
+        "Get_existing_file": ["Succeeded"]
       }
     }
   },
